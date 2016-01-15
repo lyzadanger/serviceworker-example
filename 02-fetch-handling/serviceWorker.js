@@ -20,10 +20,12 @@ var config = {
 };
 
 function addToCache (cacheKey, request, response) {
-  var copy = response.clone();
-  caches.open(cacheKey).then( cache => {
-    cache.put(request, copy);
-  });
+  if (response.ok) {
+    var copy = response.clone();
+    caches.open(cacheKey).then( cache => {
+      cache.put(request, copy);
+    });
+  }
   return response;
 }
 
