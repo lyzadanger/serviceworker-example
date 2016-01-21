@@ -5,10 +5,11 @@ self.addEventListener('install', event => {
     return caches.open('static')
       .then(cache =>
         cache.addAll([
-          '/lyza.gif',
-          '/site.js',
+          '/images/lyza.gif',
+          '/js/site.js',
           '/css/styles.css',
-          '/offline/'
+          '/offline/',
+          '/'
         ])
       );
   }

@@ -4,12 +4,13 @@
 var config = {
   version: 'achilles',
   staticCacheItems: [
-    '/lyza.gif',
+    '/images/lyza.gif',
     '/css/styles.css',
-    '/site.js',
-    '/offline/'
+    '/js/site.js',
+    '/offline/',
+    '/'
   ],
-  cachePathPattern: /^\/(20[0-9]{2}|about|blog|css)/,
+  cachePathPattern: /^\/(20[0-9]{2}|about|blog|css|images|js)/,
   offlineImage: '<svg role="img" aria-labelledby="offline-title"'
     + ' viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">'
     + '<title id="offline-title">Offline</title>'
@@ -30,18 +31,15 @@ function addToCache (cacheKey, request, response) {
 }
 
 function fetchFromCache (event) {
-  return new Promise((resolve, reject) => {
-    caches.match(event.request).then((response) => {
-      if (response !== undefined) {
-        resolve(response);
-      } else {
-        reject(`${event.request.url} not found in cache`);
-      }
-    });
+  return caches.match(event.request).then(response => {
+    if (!response) {
+      throw Error(`${event.request.url} not found in cache`);
+    }
+    return response;
   });
 }
 
-function offlineResource (resourceType, opts) {
+function offlineResponse (resourceType, opts) {
   if (resourceType === 'image') {
     return new Response(opts.offlineImage,
       { headers: { 'Content-Type': 'image/svg+xml' } }
@@ -52,11 +50,9 @@ function offlineResource (resourceType, opts) {
   return undefined;
 }
 
-
 self.addEventListener('install', event => {
   function onInstall (event, opts) {
-    var cacheKey = cacheName('static', opts);
-    return caches.open(cacheKey)
+    return caches.open('static')
       .then(cache =>
         cache.addAll(opts.staticCacheItems)
       );
@@ -76,23 +72,15 @@ self.addEventListener('fetch', event => {
   function shouldHandleFetch (event, opts) {
     var request            = event.request;
     var url                = new URL(request.url);
-    var matchesPathPattern = opts.cachePathPattern.exec(url.pathname);
-    var matchesPreCache    = opts.staticCacheItems.filter(path =>
-        path === url.pathname
-      ).length;
-
-    return new Promise(function (resolve, reject) {
-      if (url.origin !== self.location.origin) {
-        reject(`${url} is not from my origin (${self.location.origin})`);
-      }
-      if (request.method !== 'GET') {
-        reject(`request method is not 'GET' (${request.method})`);
-      }
-      if (!(matchesPathPattern || matchesPreCache)) {
-        reject(`path '${url.pathname}' does not match cache whitelist`);
-      }
-      resolve(event);
-    });
+    var criteria           = {
+      matchesPathPattern: !!(opts.cachePathPattern.exec(url.pathname) ||
+                              url.pathname === '/'),
+      isGETRequest      : request.method === 'GET',
+      isFromMyOrigin    : url.origin === self.location.origin
+    };
+    var failingCriteria    = Object.keys(criteria)
+      .filter(criteriaKey => !criteria[criteriaKey]);
+    return !failingCriteria.length;
   }
 
   function onFetch (event, opts) {
@@ -114,19 +102,19 @@ self.addEventListener('fetch', event => {
         fetch(request)
           .then(response => addToCache(cacheKey, request, response))
           .catch(() => fetchFromCache(event))
-          .catch(() => offlineResource(resourceType, opts))
+          .catch(() => offlineResponse(resourceType, opts))
       );
     } else {
       event.respondWith(
         fetchFromCache(event)
           .catch(() => fetch(request))
             .then(response => addToCache(cacheKey, request, response))
-          .catch(() => offlineResource(resourceType, opts))
+          .catch(() => offlineResponse(resourceType, opts))
       );
     }
   }
 
-  shouldHandleFetch(event, config)
-    .then(event => onFetch(event, config))
-    .catch(reason => console.log(`I am not going to handle this fetch because ${reason}`));
+  if (shouldHandleFetch(event, config)) {
+    onFetch(event, config);
+  }
 });
