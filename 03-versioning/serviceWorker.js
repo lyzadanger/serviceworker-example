@@ -88,7 +88,7 @@ self.addEventListener('fetch', event => {
     var request            = event.request;
     var url                = new URL(request.url);
     var criteria           = {
-      matchesPathPattern: !!(opts.cachePathPattern.exec(url.pathname),
+      matchesPathPattern: opts.cachePathPattern.test(url.pathname),
       isGETRequest      : request.method === 'GET',
       isFromMyOrigin    : url.origin === self.location.origin
     };
